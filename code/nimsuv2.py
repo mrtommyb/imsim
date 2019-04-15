@@ -7,6 +7,7 @@ from astropy.table import Table
 from photutils.datasets import (make_gaussian_sources_image,
                                 make_noise_image)
 from tqdm import tqdm, trange
+from multiprocessing import Pool
 
 __all__ = ['ImageSimulation']
 
@@ -35,7 +36,7 @@ class ImageSimulation(object):
                  bg_star_area=3.14159,
                  host_mag=None, target_mag=21, host_shape=(10, 5, 0),
                  target_sepatation_function='Gaussian',
-                 target_sepatation=10):
+                 target_sepatation=10, parallel=False):
         if rstate is not None:
             np.random.seed(rstate)
         self.texp = texp * u.s
@@ -91,6 +92,7 @@ class ImageSimulation(object):
             target_sepatation_function=target_sepatation_function,
             host_shape=host_shape,
             rstate=rstate)
+        self.parallel = parallel
 
     def _set_background_star_positions(self, bg_star_magnitudes,
                                        bg_star_area=3.14159,
@@ -197,19 +199,42 @@ class ImageSimulation(object):
             np.random.seed(rstate)
 
         science_image = np.zeros(self.image_shape_pix)
-        for i in range(self.ncoadds):
-            jitter_x = np.random.normal(loc=0, scale=self.jitter_pix)
-            jitter_y = np.random.normal(loc=0, scale=self.jitter_pix)
-            bg_star_image = self._make_bg_star_image(noisy=True,
-                                                     jitter=(jitter_x, jitter_y))
-            target_image = self._make_target_image(noisy=True,
-                                                   jitter=(jitter_x, jitter_y))
-            host_image = self._make_host_image(noisy=True,
+        if self.parallel:
+            pool = Pool(8)
+            coadds = pool.map(self._science_image_loop,
+                                         trange(self.ncoadds))
+            return np.array(list(coadds)).sum(axis=0)
+        else:
+            coadds = np.array(list(map(self._science_image_loop,
+                                       trange(self.ncoadds))))
+            return science_image + coadds.sum(axis=0)
+        # for i in trange(self.ncoadds):
+        #     jitter_x = np.random.normal(loc=0, scale=self.jitter_pix)
+        #     jitter_y = np.random.normal(loc=0, scale=self.jitter_pix)
+        #     bg_star_image = self._make_bg_star_image(noisy=True,
+        #                                              jitter=(jitter_x, jitter_y))
+        #     target_image = self._make_target_image(noisy=True,
+        #                                            jitter=(jitter_x, jitter_y))
+        #     host_image = self._make_host_image(noisy=True,
+        #                                        jitter=(jitter_x, jitter_y))
+        #     noise_image = self._make_noise_image(noisy=True)
+        #     science_image += (bg_star_image + noise_image + target_image +
+        #                       host_image)
+        # return science_image
+
+    def _science_image_loop(self, i):
+        jitter_x = np.random.normal(loc=0, scale=self.jitter_pix)
+        jitter_y = np.random.normal(loc=0, scale=self.jitter_pix)
+        bg_star_image = self._make_bg_star_image(noisy=True,
+                                                 jitter=(jitter_x, jitter_y))
+        target_image = self._make_target_image(noisy=True,
                                                jitter=(jitter_x, jitter_y))
-            noise_image = self._make_noise_image(noisy=True)
-            science_image += (bg_star_image + noise_image + target_image +
-                              host_image)
-        return science_image
+        host_image = self._make_host_image(noisy=True,
+                                           jitter=(jitter_x, jitter_y))
+        noise_image = self._make_noise_image(noisy=True)
+        science_image_frame = (bg_star_image + noise_image + target_image +
+                          host_image)
+        return science_image_frame
 
     def make_reference_image(self):
         ref_image = np.zeros(self.image_shape_pix)
