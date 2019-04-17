@@ -7,7 +7,7 @@ from astropy.table import Table
 from photutils.datasets import (make_gaussian_sources_image,
                                 make_noise_image)
 from tqdm import tqdm, trange
-from multiprocessing import Pool
+from pathos.threading import ThreadPool
 
 __all__ = ['ImageSimulation']
 
@@ -121,9 +121,9 @@ class ImageSimulation(object):
         table_bgstars['flux'] = fval
 
         x_mean = np.random.uniform(low=2,
-            high=self.image_shape_pix[0] - 2, size=self.nstars_in_image)
+                                   high=self.image_shape_pix[0] - 2, size=self.nstars_in_image)
         y_mean = np.random.uniform(low=2,
-            high=self.image_shape_pix[1] - 2, size=self.nstars_in_image)
+                                   high=self.image_shape_pix[1] - 2, size=self.nstars_in_image)
         table_bgstars['x_mean'] = x_mean
         table_bgstars['y_mean'] = y_mean
 
@@ -166,9 +166,9 @@ class ImageSimulation(object):
 
         # we don't put targets right next to the edge of the fov
         x_mean = np.random.uniform(low=2,
-            high=self.image_shape_pix[0] - 2)
+                                   high=self.image_shape_pix[0] - 2)
         y_mean = np.random.uniform(low=2,
-            high=self.image_shape_pix[1] - 2)
+                                   high=self.image_shape_pix[1] - 2)
 
         if target_sepatation_function == 'Gaussian':
             x_targ, y_targ = np.random.multivariate_normal(
@@ -200,10 +200,11 @@ class ImageSimulation(object):
 
         science_image = np.zeros(self.image_shape_pix)
         if self.parallel:
-            pool = Pool(8)
-            coadds = pool.map(self._science_image_loop,
-                                         trange(self.ncoadds))
-            return np.array(list(coadds)).sum(axis=0)
+            pool = ThreadPool(8)
+            coadds = list(tqdm(pool.imap(self._science_image_loop,
+                                         range(self.ncoadds)),
+            total=self.ncoadds))
+            return np.array(coadds).sum(axis=0)
         else:
             coadds = np.array(list(map(self._science_image_loop,
                                        trange(self.ncoadds))))
@@ -233,7 +234,7 @@ class ImageSimulation(object):
                                            jitter=(jitter_x, jitter_y))
         noise_image = self._make_noise_image(noisy=True)
         science_image_frame = (bg_star_image + noise_image + target_image +
-                          host_image)
+                               host_image)
         return science_image_frame
 
     def make_reference_image(self):
@@ -272,8 +273,10 @@ class ImageSimulation(object):
             table_bgstars_image['x_mean'] = x_mean_orig
             table_bgstars_image['y_mean'] = y_mean_orig
 
-        table_bgstars_image['x_stddev'] = np.copy(self.table_bgstars['x_stddev'])
-        table_bgstars_image['y_stddev'] = np.copy(self.table_bgstars['y_stddev'])
+        table_bgstars_image['x_stddev'] = np.copy(
+            self.table_bgstars['x_stddev'])
+        table_bgstars_image['y_stddev'] = np.copy(
+            self.table_bgstars['y_stddev'])
         table_bgstars_image['theta'] = np.copy(self.table_bgstars['theta'])
 
         image_bgstars = self._make_background_sources_image(
