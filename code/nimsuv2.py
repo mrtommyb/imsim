@@ -131,7 +131,7 @@ class ImageSimulation(object):
             table_bgstars['x_mean']) + self.psf_shape_arcsec[0].value) /
             self.arcsec_per_pix.value)
         table_bgstars['y_stddev'] = ((np.zeros_like(
-            table_bgstars['y_mean']) + self.psf_shape_arcsec[0].value) /
+            table_bgstars['y_mean']) + self.psf_shape_arcsec[1].value) /
             self.arcsec_per_pix.value)
         table_bgstars['theta'] = (np.zeros(self.nstars_in_image) +
                                   self.psf_shape_theta)
