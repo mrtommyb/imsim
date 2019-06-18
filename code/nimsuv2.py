@@ -185,7 +185,7 @@ class ImageSimulation(object):
         table_target['x_stddev'] = [self.psf_shape_arcsec[0].value /
                                     self.arcsec_per_pix.value, host_shape[0] /
                                     self.arcsec_per_pix.value]
-        table_target['y_stddev'] = [self.psf_shape_arcsec[0].value /
+        table_target['y_stddev'] = [self.psf_shape_arcsec[1].value /
                                     self.arcsec_per_pix.value, host_shape[1] /
                                     self.arcsec_per_pix.value]
         table_target['theta'] = [self.psf_shape_theta.value,
